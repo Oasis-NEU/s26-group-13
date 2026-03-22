@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import AddIcon from '@mui/icons-material/Add';
 import CheckIcon from '@mui/icons-material/Check';
 import useBookStore from '../../../store/bookStore';
+import useAuthStore from '../../../store/authStore';
 
 export default function BookCard({ book }) {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function BookCard({ book }) {
   const addToReadingList = useBookStore((s) => s.addToReadingList);
   const isInReadingList = useBookStore((s) => s.isInReadingList);
   const addToHistory = useBookStore((s) => s.addToHistory);
+  const user = useAuthStore((s) => s.user);
   const alreadyAdded = isInReadingList(book.id);
 
   const handleClick = () => {
@@ -20,7 +22,7 @@ export default function BookCard({ book }) {
 
   const handleAdd = (e) => {
     e.stopPropagation();
-    addToReadingList(book);
+    addToReadingList(book, user?.id);
   };
 
   return (

@@ -8,12 +8,14 @@ import CheckIcon from '@mui/icons-material/Check';
 import { getBookDetails } from '../../services/bookApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import useBookStore from '../../store/bookStore';
+import useAuthStore from '../../store/authStore';
 
 export default function BookDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const addToReadingList = useBookStore((s) => s.addToReadingList);
   const isInReadingList = useBookStore((s) => s.isInReadingList);
+  const user = useAuthStore((s) => s.user);
   const alreadyAdded = isInReadingList(id);
 
   const { data: book, isLoading, isError } = useQuery({
@@ -27,14 +29,17 @@ export default function BookDetailsPage() {
   if (!book) return null;
 
   const handleAdd = () => {
-    addToReadingList({
-      id: book.id,
-      title: book.title,
-      authors: [],
-      coverUrl: book.covers?.[0]?.replace('-L.jpg', '-M.jpg') || null,
-      firstPublishYear: null,
-      pages: null,
-    });
+    addToReadingList(
+      {
+        id: book.id,
+        title: book.title,
+        authors: [],
+        coverUrl: book.covers?.[0]?.replace('-L.jpg', '-M.jpg') || null,
+        firstPublishYear: null,
+        pages: null,
+      },
+      user?.id
+    );
   };
 
   return (

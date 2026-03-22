@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabaseClient';
+import useBookStore from './bookStore';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -13,6 +14,9 @@ const useAuthStore = create((set, get) => ({
       user: session?.user || null,
       loading: false,
     });
+    if (session?.user) {
+      useBookStore.getState().loadUserBooks(session.user.id);
+    }
 
     supabase.auth.onAuthStateChange((_event, session) => {
       set({
@@ -20,6 +24,11 @@ const useAuthStore = create((set, get) => ({
         user: session?.user || null,
         loading: false,
       });
+      if (session?.user) {
+        useBookStore.getState().loadUserBooks(session.user.id);
+      } else {
+        useBookStore.getState().clearReadingList();
+      }
     });
   },
 

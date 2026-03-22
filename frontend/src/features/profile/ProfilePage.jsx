@@ -29,7 +29,7 @@ export default function ProfilePage() {
   const handleSaveProgress = () => {
     const page = parseInt(pageInput, 10);
     if (!isNaN(page) && page >= 0 && progressDialog.book) {
-      updateProgress(progressDialog.book.id, page);
+      updateProgress(progressDialog.book.id, page, user?.id);
     }
     setProgressDialog({ open: false, book: null });
   };
@@ -145,7 +145,7 @@ export default function ProfilePage() {
                     size="small"
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeFromReadingList(book.id);
+                      removeFromReadingList(book.id, user?.id);
                     }}
                     sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }}
                   >
