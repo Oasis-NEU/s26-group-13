@@ -11,7 +11,7 @@ import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MOCK_PROFILES } from '../data/mockProfiles';
-import { fetchProfiles } from '../../../services/libraryApi';
+import { fetchProfiles, fetchProfilesByIds } from '../../../services/libraryApi';
 import useSocialStore from '../../../store/socialStore';
 import useActivityStore, {
   calcCurrentStreak, calcLongestStreak, calcDaysLogged, calcTotalPages,
@@ -32,13 +32,10 @@ function timeAgo(ts) {
 // ─── Discover tab ────────────────────────────────────────────────────────────
 
 function RealUserCard({ profile, user, navigate }) {
-  const isFollowing = useSocialStore((s) => s.isFollowing);
+  const following = useSocialStore((s) => s.following.includes(profile.id));
   const follow = useSocialStore((s) => s.follow);
   const unfollow = useSocialStore((s) => s.unfollow);
-
-  const following = isFollowing(profile.id);
   const displayName = profile.username || profile.id.slice(0, 8);
-  const username = profile.username || profile.id.slice(0, 8);
 
   const handleFollow = (e) => {
     e.stopPropagation();
@@ -48,9 +45,10 @@ function RealUserCard({ profile, user, navigate }) {
 
   return (
     <Card
+      onClick={() => navigate(`/social/${profile.id}`)}
       sx={{
         p: 2.5, display: 'flex', alignItems: 'center', gap: 2,
-        transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 3 },
+        cursor: 'pointer', transition: 'box-shadow 0.2s', '&:hover': { boxShadow: 3 },
       }}
     >
       <Avatar sx={{ width: 52, height: 52, bgcolor: 'secondary.main', fontSize: 20, flexShrink: 0 }}>
@@ -61,7 +59,7 @@ function RealUserCard({ profile, user, navigate }) {
           <Typography fontWeight={600}>{displayName}</Typography>
           <Chip label="Real user" size="small" color="success" sx={{ fontSize: 10, height: 18 }} />
         </Box>
-        <Typography variant="body2" color="text.secondary">@{username}</Typography>
+        <Typography variant="body2" color="text.secondary">@{displayName}</Typography>
       </Box>
       <Button
         variant={following ? 'outlined' : 'contained'}
@@ -79,7 +77,7 @@ function RealUserCard({ profile, user, navigate }) {
 function DiscoverTab({ user }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const isFollowing = useSocialStore((s) => s.isFollowing);
+  const followingList = useSocialStore((s) => s.following);
   const follow = useSocialStore((s) => s.follow);
   const unfollow = useSocialStore((s) => s.unfollow);
   const activityMap = useActivityStore((s) => s.activityMap);
@@ -106,7 +104,7 @@ function DiscoverTab({ user }) {
   const handleFollow = (e, id) => {
     e.stopPropagation();
     if (!user) { navigate('/login'); return; }
-    isFollowing(id) ? unfollow(id) : follow(id);
+    followingList.includes(id) ? unfollow(id) : follow(id);
   };
 
   const totalResults = filteredReal.length + filteredMocks.length;
@@ -138,7 +136,7 @@ function DiscoverTab({ user }) {
 
         {/* Mock demo profiles */}
         {filteredMocks.map((profile) => {
-          const following = isFollowing(profile.id);
+          const following = followingList.includes(profile.id);
           const streak = calcCurrentStreak(activityMap[profile.id] || {});
           const booksFinished = profile.readingList.filter((b) => b.status === 'finished').length;
           const booksReading = profile.readingList.filter((b) => b.status === 'reading').length;
@@ -197,22 +195,33 @@ function DiscoverTab({ user }) {
   );
 }
 
-// ─── Friends tab ─────────────────────────────────────────────────────────────
+// ─── Following tab ───────────────────────────────────────────────────────────
 
-function FriendsTab({ user }) {
+const MOCK_IDS = new Set(MOCK_PROFILES.map((p) => p.id));
+
+function FollowingTab({ user }) {
   const navigate = useNavigate();
-  const following = useSocialStore((s) => s.following);
+  const followingList = useSocialStore((s) => s.following);
   const unfollow = useSocialStore((s) => s.unfollow);
   const sessions = useActivityStore((s) => s.sessions);
   const activeSessions = useActivityStore((s) => s.activeSessions);
   const activityMap = useActivityStore((s) => s.activityMap);
 
-  const friends = MOCK_PROFILES.filter((p) => following.includes(p.id));
+  const followedMocks = MOCK_PROFILES.filter((p) => followingList.includes(p.id));
+  const followedRealIds = followingList.filter((id) => !MOCK_IDS.has(id));
 
-  if (friends.length === 0) {
+  const { data: followedRealProfiles = [] } = useQuery({
+    queryKey: ['followedProfiles', followedRealIds.join(',')],
+    queryFn: () => fetchProfilesByIds(followedRealIds),
+    enabled: followedRealIds.length > 0,
+  });
+
+  const totalFollowing = followedMocks.length + followedRealProfiles.length;
+
+  if (followingList.length === 0 || totalFollowing === 0) {
     return (
       <Box sx={{ textAlign: 'center', py: 6 }}>
-        <Typography variant="h6" gutterBottom>No friends yet</Typography>
+        <Typography variant="h6" gutterBottom>Not following anyone yet</Typography>
         <Typography color="text.secondary">
           Go to Discover and follow some readers to see them here.
         </Typography>
@@ -220,79 +229,100 @@ function FriendsTab({ user }) {
     );
   }
 
+  const FollowCard = ({ id, displayName, username, bgcolor = 'primary.main', booksFinished = 0, streak = 0, totalPages = 0, recentSessions = [], isLive = false }) => (
+    <Card key={id} sx={{ p: 2.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 1.5 }}>
+        <Avatar
+          sx={{ width: 48, height: 48, bgcolor, fontSize: 18, cursor: 'pointer' }}
+          onClick={() => navigate(`/social/${id}`)}
+        >
+          {displayName.charAt(0).toUpperCase()}
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography
+              fontWeight={600} sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+              onClick={() => navigate(`/social/${id}`)}
+            >
+              {displayName}
+            </Typography>
+            {isLive && <Chip label="Reading now" size="small" color="success" sx={{ fontSize: 10, height: 18 }} />}
+          </Box>
+          <Typography variant="body2" color="text.secondary">@{username}</Typography>
+        </Box>
+        <Button size="small" variant="outlined" color="error" onClick={() => unfollow(id)}>
+          Unfollow
+        </Button>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 3, mb: recentSessions.length > 0 ? 1.5 : 0, flexWrap: 'wrap' }}>
+        <Box>
+          <Typography variant="h6" fontWeight={700} color="primary.main">{booksFinished}</Typography>
+          <Typography variant="caption" color="text.secondary">Books</Typography>
+        </Box>
+        <Box>
+          <Typography variant="h6" fontWeight={700} color="primary.main">{totalPages.toLocaleString()}</Typography>
+          <Typography variant="caption" color="text.secondary">Pages</Typography>
+        </Box>
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <LocalFireDepartmentIcon sx={{ fontSize: 18, color: 'warning.main' }} />
+            <Typography variant="h6" fontWeight={700} color="warning.main">{streak}</Typography>
+          </Box>
+          <Typography variant="caption" color="text.secondary">Day streak</Typography>
+        </Box>
+      </Box>
+      {recentSessions.length > 0 && (
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
+            Recent Activity
+          </Typography>
+          {recentSessions.map((s) => (
+            <Typography key={s.id} variant="caption" color="text.secondary" display="block">
+              Read {s.pagesRead}p of <em>{s.bookTitle}</em> · {timeAgo(s.timestamp)}
+            </Typography>
+          ))}
+        </Box>
+      )}
+    </Card>
+  );
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {friends.map((profile) => {
-        const streak = calcCurrentStreak(activityMap[profile.id] || {});
-        const totalPages = calcTotalPages(activityMap[profile.id] || {});
-        const booksFinished = profile.readingList.filter((b) => b.status === 'finished').length;
-        const recentSessions = sessions.filter((s) => s.userId === profile.id).slice(0, 3);
-        const isLive = Boolean(activeSessions[profile.id]);
-
+      {/* Real Supabase users being followed */}
+      {followedRealProfiles.map((profile) => {
+        const uMap = activityMap[profile.id] || {};
         return (
-          <Card key={profile.id} sx={{ p: 2.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-              <Avatar
-                sx={{ width: 48, height: 48, bgcolor: 'primary.main', fontSize: 18, cursor: 'pointer' }}
-                onClick={() => navigate(`/social/${profile.id}`)}
-              >
-                {profile.displayName.charAt(0)}
-              </Avatar>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography
-                    fontWeight={600} sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
-                    onClick={() => navigate(`/social/${profile.id}`)}
-                  >
-                    {profile.displayName}
-                  </Typography>
-                  {isLive && <Chip label="Reading now" size="small" color="success" sx={{ fontSize: 10, height: 18 }} />}
-                </Box>
-                <Typography variant="body2" color="text.secondary">@{profile.username}</Typography>
-              </Box>
-              <Button
-                size="small" variant="outlined" color="error"
-                onClick={() => unfollow(profile.id)}
-              >
-                Unfollow
-              </Button>
-            </Box>
+          <FollowCard
+            key={profile.id}
+            id={profile.id}
+            displayName={profile.username}
+            username={profile.username}
+            bgcolor="secondary.main"
+            booksFinished={0}
+            streak={calcCurrentStreak(uMap)}
+            totalPages={calcTotalPages(uMap)}
+            recentSessions={sessions.filter((s) => s.userId === profile.id).slice(0, 3)}
+            isLive={Boolean(activeSessions[profile.id])}
+          />
+        );
+      })}
 
-            {/* Stats row */}
-            <Box sx={{ display: 'flex', gap: 3, mb: 2, flexWrap: 'wrap' }}>
-              <Box>
-                <Typography variant="h6" fontWeight={700} color="primary.main">{booksFinished}</Typography>
-                <Typography variant="caption" color="text.secondary">Books</Typography>
-              </Box>
-              <Box>
-                <Typography variant="h6" fontWeight={700} color="primary.main">{totalPages.toLocaleString()}</Typography>
-                <Typography variant="caption" color="text.secondary">Pages</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <LocalFireDepartmentIcon sx={{ fontSize: 18, color: 'warning.main' }} />
-                    <Typography variant="h6" fontWeight={700} color="warning.main">{streak}</Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">Day streak</Typography>
-                </Box>
-              </Box>
-            </Box>
-
-            {/* Recent activity */}
-            {recentSessions.length > 0 && (
-              <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 1.5 }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1, display: 'block' }}>
-                  Recent Activity
-                </Typography>
-                {recentSessions.map((s) => (
-                  <Typography key={s.id} variant="caption" color="text.secondary" display="block">
-                    Read {s.pagesRead}p of <em>{s.bookTitle}</em> · {timeAgo(s.timestamp)}
-                  </Typography>
-                ))}
-              </Box>
-            )}
-          </Card>
+      {/* Demo mock profiles being followed */}
+      {followedMocks.map((profile) => {
+        const uMap = activityMap[profile.id] || {};
+        return (
+          <FollowCard
+            key={profile.id}
+            id={profile.id}
+            displayName={profile.displayName}
+            username={profile.username}
+            bgcolor="primary.main"
+            booksFinished={profile.readingList.filter((b) => b.status === 'finished').length}
+            streak={calcCurrentStreak(uMap)}
+            totalPages={calcTotalPages(uMap)}
+            recentSessions={sessions.filter((s) => s.userId === profile.id).slice(0, 3)}
+            isLive={Boolean(activeSessions[profile.id])}
+          />
         );
       })}
     </Box>
@@ -452,12 +482,12 @@ export default function SocialPage() {
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
         <Tab label="Discover" />
-        <Tab label="Friends" />
+        <Tab label="Following" />
         <Tab label="Leaderboard" />
       </Tabs>
 
       {tab === 0 && <DiscoverTab user={user} />}
-      {tab === 1 && <FriendsTab user={user} />}
+      {tab === 1 && <FollowingTab user={user} />}
       {tab === 2 && <LeaderboardTab user={user} />}
     </Box>
   );
