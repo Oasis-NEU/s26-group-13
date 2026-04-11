@@ -92,6 +92,41 @@ export async function upsertProfile(userId, displayName, _email) {
   if (error) console.warn('upsertProfile failed:', error.message);
 }
 
+// Fetch a single profile by ID
+export async function fetchProfileById(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url, yearly_goal, daily_min_goal')
+    .eq('id', userId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Fetch multiple profiles by IDs (for Following tab)
+export async function fetchProfilesByIds(ids) {
+  if (!ids.length) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .in('id', ids);
+  if (error) return [];
+  return (data || []).filter((p) => p.username);
+}
+
+// Fetch another user's reading list (may be empty if RLS blocks it)
+export async function fetchUserBooksById(userId) {
+  const { data, error } = await supabase
+    .from('user_books')
+    .select(`
+      id, status, current_page,
+      books ( id, open_library_id, title, author, cover_url, page_count )
+    `)
+    .eq('user_id', userId);
+  if (error) return []; // gracefully handle RLS
+  return data || [];
+}
+
 // Fetch all profiles for the Discover tab (excludes the current user)
 export async function fetchProfiles(query = '', currentUserId = null) {
   let req = supabase
