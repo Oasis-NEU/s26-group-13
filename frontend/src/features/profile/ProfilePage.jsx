@@ -6,9 +6,12 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useNavigate } from 'react-router-dom';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
+import useActivityStore, { calcCurrentStreak } from '../../store/activityStore';
+import ActivityChart from '../../components/common/ActivityChart';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -19,6 +22,10 @@ export default function ProfilePage() {
 
   const [progressDialog, setProgressDialog] = useState({ open: false, book: null });
   const [pageInput, setPageInput] = useState('');
+
+  const fullActivityMap = useActivityStore((s) => s.activityMap);
+  const activityMap = fullActivityMap[user?.id] || {};
+  const streak = calcCurrentStreak(activityMap);
 
   const handleOpenProgress = (e, book) => {
     e.stopPropagation();
@@ -51,12 +58,20 @@ export default function ProfilePage() {
         <Box>
           <Typography variant="h5">{user ? displayName : 'Guest'}</Typography>
           {user && (
-            <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
               <Typography variant="body2" color="text.secondary">
                 {readingList.length} Books
               </Typography>
               <Typography variant="body2" color="text.secondary">0 Following</Typography>
               <Typography variant="body2" color="text.secondary">0 Followers</Typography>
+              {streak > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <LocalFireDepartmentIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                  <Typography variant="body2" color="warning.main" fontWeight={700}>
+                    {streak} day streak
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
           {!user && (
@@ -115,12 +130,26 @@ export default function ProfilePage() {
                 }}
                 onClick={() => navigate(`/book/${book.id}`)}
               >
-                <Box
-                  component="img"
-                  src={book.coverUrl || 'https://via.placeholder.com/180x240?text=No+Cover'}
-                  alt={book.title}
-                  sx={{ width: '100%', height: 240, objectFit: 'cover' }}
-                />
+                {book.coverUrl ? (
+                  <Box
+                    component="img"
+                    src={book.coverUrl}
+                    alt={book.title}
+                    sx={{ width: '100%', height: 240, objectFit: 'cover' }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      width: '100%', height: 240,
+                      bgcolor: 'primary.main',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Typography variant="h3" sx={{ color: 'white', fontWeight: 700, opacity: 0.6 }}>
+                      {book.title.charAt(0).toUpperCase()}
+                    </Typography>
+                  </Box>
+                )}
 
                 <Box
                   className="book-actions"
@@ -205,6 +234,15 @@ export default function ProfilePage() {
             </Card>
           </Grid>
         </Grid>
+      )}
+
+      {user && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>Reading Activity</Typography>
+          <Card sx={{ p: 2 }}>
+            <ActivityChart activityMap={activityMap} />
+          </Card>
+        </Box>
       )}
 
       <Dialog

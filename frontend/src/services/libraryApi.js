@@ -75,3 +75,41 @@ export async function updateBookProgress(userBookId, currentPage) {
     .eq('id', userBookId);
   if (error) throw error;
 }
+
+// Save username so other users can discover this account
+// profiles table has: id, username, avatar_url, yearly_goal, daily_min_goal, created_at
+export async function upsertProfile(userId, displayName, _email) {
+  // Derive a username from displayName (lowercase, no spaces)
+  const username = displayName
+    ? displayName.toLowerCase().replace(/\s+/g, '_')
+    : null;
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      { id: userId, username: username || null },
+      { onConflict: 'id', ignoreDuplicates: false }
+    );
+  if (error) console.warn('upsertProfile failed:', error.message);
+}
+
+// Fetch all profiles for the Discover tab (excludes the current user)
+export async function fetchProfiles(query = '', currentUserId = null) {
+  let req = supabase
+    .from('profiles')
+    .select('id, username')
+    .order('id');
+
+  if (currentUserId) {
+    req = req.neq('id', currentUserId);
+  }
+
+  const { data, error } = await req;
+  if (error) throw error;
+
+  // Only show profiles that have a username set
+  const withNames = (data || []).filter((p) => p.username);
+
+  if (!query) return withNames;
+  const q = query.toLowerCase();
+  return withNames.filter((p) => p.username.toLowerCase().includes(q));
+}

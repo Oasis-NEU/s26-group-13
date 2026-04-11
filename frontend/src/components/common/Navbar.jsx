@@ -10,10 +10,13 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import useBookSearch from '../../features/books/hooks/useBookSearch';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
+import ThemeSelector from './ThemeSelector';
 
 const navLinks = [
   { label: 'Home', path: '/' },
   { label: 'Library', path: '/library' },
+  { label: 'Social', path: '/social' },
+  { label: 'Timer', path: '/timer' },
   { label: 'Profile', path: '/profile' },
 ];
 
@@ -47,7 +50,7 @@ export default function Navbar() {
           sx={{ cursor: 'pointer', color: 'primary.main', mr: 2 }}
           onClick={() => navigate('/')}
         >
-          BookTracker
+          Chapters
         </Typography>
 
         {navLinks.map((link) => (
@@ -125,6 +128,8 @@ export default function Navbar() {
             )}
           </Box>
         </ClickAwayListener>
+
+        <ThemeSelector />
 
         {user ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

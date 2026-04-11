@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabaseClient';
 import useBookStore from './bookStore';
+import { upsertProfile } from '../services/libraryApi';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -38,9 +39,14 @@ const useAuthStore = create((set, get) => ({
       password,
       options: {
         data: { display_name: displayName },
+        emailRedirectTo: window.location.origin + '/login',
       },
     });
     if (error) throw error;
+    // Save profile so other users can find this account
+    if (data.user) {
+      await upsertProfile(data.user.id, displayName, email);
+    }
     return data;
   },
 
@@ -50,6 +56,11 @@ const useAuthStore = create((set, get) => ({
       password,
     });
     if (error) throw error;
+    // Ensure profile exists with latest display_name (backfills existing accounts)
+    if (data.user) {
+      const displayName = data.user.user_metadata?.display_name || null;
+      await upsertProfile(data.user.id, displayName, email);
+    }
     return data;
   },
 

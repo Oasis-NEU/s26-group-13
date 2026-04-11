@@ -8,6 +8,9 @@ import LoginPage from '../features/auth/pages/LoginPage';
 import SignupPage from '../features/auth/pages/SignupPage';
 import ProfilePage from '../features/profile/ProfilePage';
 import LibraryPage from '../features/library/LibraryPage';
+import SocialPage from '../features/social/pages/SocialPage';
+import UserProfilePage from '../features/social/pages/UserProfilePage';
+import TimerPage from '../features/timer/pages/TimerPage';
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +20,9 @@ export const router = createBrowserRouter([
       { path: '/book/:id', element: <BookDetailsPage /> },
       { path: '/profile', element: <ProfilePage /> },
       { path: '/library', element: <LibraryPage /> },
+      { path: '/social', element: <SocialPage /> },
+      { path: '/social/:userId', element: <UserProfilePage /> },
+      { path: '/timer', element: <TimerPage /> },
     ],
   },
   {
