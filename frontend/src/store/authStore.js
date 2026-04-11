@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../services/supabaseClient';
 import useBookStore from './bookStore';
 import { upsertProfile } from '../services/libraryApi';
+import useSocialStore from './socialStore';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -17,6 +18,7 @@ const useAuthStore = create((set, get) => ({
     });
     if (session?.user) {
       useBookStore.getState().loadUserBooks(session.user.id);
+      useSocialStore.getState().loadFollowing(session.user.id);
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {
@@ -27,6 +29,7 @@ const useAuthStore = create((set, get) => ({
       });
       if (session?.user) {
         useBookStore.getState().loadUserBooks(session.user.id);
+        useSocialStore.getState().loadFollowing(session.user.id);
       } else {
         useBookStore.getState().clearReadingList();
       }

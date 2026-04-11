@@ -92,6 +92,47 @@ export async function upsertProfile(userId, displayName, _email) {
   if (error) console.warn('upsertProfile failed:', error.message);
 }
 
+// ── Follow system ─────────────────────────────────────────────────────────────
+
+export async function syncFollow(followerId, followingId) {
+  const { error } = await supabase
+    .from('follows')
+    .upsert(
+      { follower_id: followerId, following_id: followingId },
+      { onConflict: 'follower_id,following_id', ignoreDuplicates: true }
+    );
+  if (error) throw error;
+}
+
+export async function syncUnfollow(followerId, followingId) {
+  const { error } = await supabase
+    .from('follows')
+    .delete()
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId);
+  if (error) throw error;
+}
+
+export async function getFollowingIds(userId) {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+  if (error) return [];
+  return (data || []).map((r) => r.following_id);
+}
+
+export async function getFollowCounts(userId) {
+  const [followingRes, followersRes] = await Promise.all([
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+  ]);
+  return {
+    following: followingRes.count ?? 0,
+    followers: followersRes.count ?? 0,
+  };
+}
+
 // Fetch a single profile by ID
 export async function fetchProfileById(userId) {
   const { data, error } = await supabase

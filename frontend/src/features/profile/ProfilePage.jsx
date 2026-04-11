@@ -8,10 +8,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
 import useActivityStore, { calcCurrentStreak } from '../../store/activityStore';
 import ActivityChart from '../../components/common/ActivityChart';
+import { getFollowCounts } from '../../services/libraryApi';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -49,6 +51,12 @@ export default function ProfilePage() {
 
   const displayName = user?.user_metadata?.display_name || user?.email || 'Guest';
 
+  const { data: followCounts } = useQuery({
+    queryKey: ['followCounts', user?.id],
+    queryFn: () => getFollowCounts(user.id),
+    enabled: !!user,
+  });
+
   return (
     <div>
       <Box sx={{ display: 'flex', gap: 3, mb: 4, alignItems: 'center' }}>
@@ -62,8 +70,8 @@ export default function ProfilePage() {
               <Typography variant="body2" color="text.secondary">
                 {readingList.length} Books
               </Typography>
-              <Typography variant="body2" color="text.secondary">0 Following</Typography>
-              <Typography variant="body2" color="text.secondary">0 Followers</Typography>
+              <Typography variant="body2" color="text.secondary">{followCounts?.following ?? '—'} Following</Typography>
+              <Typography variant="body2" color="text.secondary">{followCounts?.followers ?? '—'} Followers</Typography>
               {streak > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <LocalFireDepartmentIcon sx={{ fontSize: 16, color: 'warning.main' }} />
