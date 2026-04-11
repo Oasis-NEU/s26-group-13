@@ -5,6 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import CheckIcon from '@mui/icons-material/Check';
 import useBookStore from '../../../store/bookStore';
 import useAuthStore from '../../../store/authStore';
+import useToastStore from '../../../store/toastStore';
 
 export default function BookCard({ book }) {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function BookCard({ book }) {
   const isInReadingList = useBookStore((s) => s.isInReadingList);
   const addToHistory = useBookStore((s) => s.addToHistory);
   const user = useAuthStore((s) => s.user);
+  const showToast = useToastStore((s) => s.showToast);
   const alreadyAdded = isInReadingList(book.id);
 
   const handleClick = () => {
@@ -23,6 +25,7 @@ export default function BookCard({ book }) {
   const handleAdd = (e) => {
     e.stopPropagation();
     addToReadingList(book, user?.id);
+    showToast(`"${book.title}" added to your reading list`);
   };
 
   return (

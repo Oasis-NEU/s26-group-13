@@ -9,6 +9,7 @@ import { getBookDetails } from '../../services/bookApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
+import useToastStore from '../../store/toastStore';
 
 export default function BookDetailsPage() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function BookDetailsPage() {
   const addToReadingList = useBookStore((s) => s.addToReadingList);
   const isInReadingList = useBookStore((s) => s.isInReadingList);
   const user = useAuthStore((s) => s.user);
+  const showToast = useToastStore((s) => s.showToast);
   const alreadyAdded = isInReadingList(id);
 
   const { data: book, isLoading, isError } = useQuery({
@@ -40,6 +42,7 @@ export default function BookDetailsPage() {
       },
       user?.id
     );
+    showToast(`"${book.title}" added to your reading list`);
   };
 
   return (
