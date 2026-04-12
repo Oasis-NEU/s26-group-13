@@ -8,6 +8,7 @@ export async function fetchUserBooks(userId) {
       status,
       current_page,
       rating,
+      is_favorite,
       books (
         id,
         open_library_id,
@@ -24,7 +25,7 @@ export async function fetchUserBooks(userId) {
   return data;
 }
 
-export async function addBookToLibrary(userId, book) {
+export async function addBookToLibrary(userId, book, status = 'reading') {
   // Ensure a profile row exists for this user (required by user_books FK)
   const { error: profileError } = await supabase
     .from('profiles')
@@ -54,7 +55,7 @@ export async function addBookToLibrary(userId, book) {
   // Link book to user
   const { data: userBook, error: userBookError } = await supabase
     .from('user_books')
-    .insert({ user_id: userId, book_id: bookRow.id, status: 'to_read', current_page: 0 })
+    .insert({ user_id: userId, book_id: bookRow.id, status, current_page: 0 })
     .select('id')
     .single();
 
@@ -72,6 +73,30 @@ export async function updateBookProgress(userBookId, currentPage) {
   const { error } = await supabase
     .from('user_books')
     .update({ current_page: currentPage })
+    .eq('id', userBookId);
+  if (error) throw error;
+}
+
+export async function updateBookPageCount(openLibraryId, pageCount) {
+  const { error } = await supabase
+    .from('books')
+    .update({ page_count: pageCount })
+    .eq('open_library_id', openLibraryId);
+  if (error) console.warn('Failed to update page count:', error.message);
+}
+
+export async function updateBookStatus(userBookId, status) {
+  const { error } = await supabase
+    .from('user_books')
+    .update({ status })
+    .eq('id', userBookId);
+  if (error) throw error;
+}
+
+export async function setBookFavorite(userBookId, isFavorite) {
+  const { error } = await supabase
+    .from('user_books')
+    .update({ is_favorite: isFavorite })
     .eq('id', userBookId);
   if (error) throw error;
 }
