@@ -7,11 +7,15 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
 import useActivityStore, { calcCurrentStreak } from '../../store/activityStore';
+import useToastStore from '../../store/toastStore';
 import ActivityChart from '../../components/common/ActivityChart';
+import { getFollowCounts } from '../../services/libraryApi';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -19,7 +23,9 @@ export default function ProfilePage() {
   const readingList = useBookStore((s) => s.readingList);
   const removeFromReadingList = useBookStore((s) => s.removeFromReadingList);
   const updateProgress = useBookStore((s) => s.updateProgress);
+  const showToast = useToastStore((s) => s.showToast);
 
+  const updateStatus = useBookStore((s) => s.updateStatus);
   const [progressDialog, setProgressDialog] = useState({ open: false, book: null });
   const [pageInput, setPageInput] = useState('');
 
@@ -34,20 +40,46 @@ export default function ProfilePage() {
   };
 
   const handleSaveProgress = () => {
-    const page = parseInt(pageInput, 10);
-    if (!isNaN(page) && page >= 0 && progressDialog.book) {
-      updateProgress(progressDialog.book.id, page, user?.id);
+    const book = progressDialog.book;
+    if (!book) return;
+
+    let page = parseInt(pageInput, 10);
+    if (isNaN(page) || page < 0) page = 0;
+    if (book.pages && page > book.pages) page = book.pages;
+
+    const previousPage = book.currentPage;
+    const previousStatus = book.status;
+
+    updateProgress(book.id, page, user?.id);
+
+    if (book.pages && page >= book.pages) {
+      updateStatus(book.id, 'finished', user?.id);
+      showToast(
+        `You finished "${book.title}"! Great job!`,
+        'success',
+        () => {
+          updateProgress(book.id, previousPage, user?.id);
+          updateStatus(book.id, previousStatus || 'reading', user?.id);
+        }
+      );
     }
+
     setProgressDialog({ open: false, book: null });
   };
 
   const totalPages = readingList.reduce((sum, b) => sum + (b.currentPage || 0), 0);
   const booksStarted = readingList.filter((b) => b.currentPage > 0).length;
   const booksFinished = readingList.filter(
-    (b) => b.pages && b.currentPage >= b.pages
+    (b) => b.status === 'finished' || (b.pages && b.currentPage >= b.pages)
   ).length;
 
   const displayName = user?.user_metadata?.display_name || user?.email || 'Guest';
+
+  const { data: followCounts } = useQuery({
+    queryKey: ['followCounts', user?.id],
+    queryFn: () => getFollowCounts(user.id),
+    enabled: !!user,
+  });
 
   return (
     <div>
@@ -62,8 +94,8 @@ export default function ProfilePage() {
               <Typography variant="body2" color="text.secondary">
                 {readingList.length} Books
               </Typography>
-              <Typography variant="body2" color="text.secondary">0 Following</Typography>
-              <Typography variant="body2" color="text.secondary">0 Followers</Typography>
+              <Typography variant="body2" color="text.secondary">{followCounts?.following ?? '—'} Following</Typography>
+              <Typography variant="body2" color="text.secondary">{followCounts?.followers ?? '—'} Followers</Typography>
               {streak > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <LocalFireDepartmentIcon sx={{ fontSize: 16, color: 'warning.main' }} />
@@ -101,7 +133,7 @@ export default function ProfilePage() {
 
       <Typography variant="h6" gutterBottom>Currently Reading</Typography>
 
-      {readingList.length === 0 ? (
+      {readingList.filter((b) => b.status === 'reading' || b.status === 'to_read').length === 0 ? (
         <Card sx={{ p: 3, mb: 3, textAlign: 'center' }}>
           <Typography color="text.secondary" gutterBottom>
             No books in your reading list yet.
@@ -112,7 +144,7 @@ export default function ProfilePage() {
         </Card>
       ) : (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 4 }}>
-          {readingList.map((book) => {
+          {readingList.filter((b) => b.status === 'reading' || b.status === 'to_read').map((book) => {
             const progress = book.pages && book.currentPage
               ? Math.min((book.currentPage / book.pages) * 100, 100)
               : 0;
@@ -189,18 +221,20 @@ export default function ProfilePage() {
                   <Typography variant="caption" color="text.secondary" noWrap>
                     {book.authors?.[0] || 'Unknown author'}
                   </Typography>
-                  {book.currentPage > 0 && (
-                    <Typography variant="caption" display="block" color="primary.main" fontWeight={600}>
-                      Page {book.currentPage}{book.pages ? ` / ${book.pages}` : ''}
-                    </Typography>
-                  )}
-                  {progress > 0 && (
+                  <Box sx={{ mt: 0.75 }}>
                     <LinearProgress
                       variant="determinate"
                       value={progress}
-                      sx={{ mt: 0.5, borderRadius: 1, height: 4 }}
+                      sx={{ borderRadius: 1, height: 5 }}
                     />
-                  )}
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, display: 'block' }}>
+                      {book.pages > 0
+                        ? `${book.currentPage} / ${book.pages} pages`
+                        : book.currentPage > 0
+                          ? `Page ${book.currentPage}`
+                          : 'No progress yet'}
+                    </Typography>
+                  </Box>
                 </Box>
               </Card>
             );
@@ -233,6 +267,57 @@ export default function ProfilePage() {
               <Typography variant="body2">{readingList.length} books in list</Typography>
             </Card>
           </Grid>
+
+          <Grid item xs={12} md={4}>
+            <Typography variant="h6" gutterBottom>Favorites</Typography>
+            {(() => {
+              const favorites = readingList.filter((b) => b.isFavorite).slice(0, 3);
+              return favorites.length === 0 ? (
+                <Card sx={{ p: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No favorites yet. Heart a book on its page to add it here.
+                  </Typography>
+                </Card>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {favorites.map((book) => (
+                    <Card
+                      key={book.id}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1, cursor: 'pointer' }}
+                      onClick={() => navigate(`/book/${book.id}`)}
+                    >
+                      {book.coverUrl ? (
+                        <Box
+                          component="img"
+                          src={book.coverUrl}
+                          alt={book.title}
+                          sx={{ width: 38, height: 52, objectFit: 'cover', borderRadius: 0.5, flexShrink: 0 }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            width: 38, height: 52, bgcolor: 'primary.main', borderRadius: 0.5,
+                            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >
+                          <Typography sx={{ color: 'white', fontWeight: 700, fontSize: 16 }}>
+                            {book.title.charAt(0)}
+                          </Typography>
+                        </Box>
+                      )}
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="body2" fontWeight={600} noWrap>{book.title}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap display="block">
+                          {book.authors?.[0] || 'Unknown author'}
+                        </Typography>
+                      </Box>
+                      <FavoriteIcon sx={{ fontSize: 14, color: 'error.main', flexShrink: 0 }} />
+                    </Card>
+                  ))}
+                </Box>
+              );
+            })()}
+          </Grid>
         </Grid>
       )}
 
@@ -257,17 +342,21 @@ export default function ProfilePage() {
           <TextField
             autoFocus
             fullWidth
-            label="Current page number"
+            label="Current page"
             type="number"
             value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            inputProps={{ min: 0 }}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              const max = progressDialog.book?.pages;
+              if (!isNaN(val) && max && val > max) {
+                setPageInput(max.toString());
+              } else {
+                setPageInput(e.target.value);
+              }
+            }}
+            inputProps={{ min: 0, max: progressDialog.book?.pages || undefined }}
+            helperText={progressDialog.book?.pages ? `Out of ${progressDialog.book.pages} pages` : undefined}
           />
-          {progressDialog.book?.pages && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Total pages: {progressDialog.book.pages}
-            </Typography>
-          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setProgressDialog({ open: false, book: null })}>Cancel</Button>

@@ -26,11 +26,31 @@ export async function searchBooks(query, limit = 20) {
   }));
 }
 
-export async function getBookDetails(workId) {
-  const res = await fetch(`${BASE_URL}/works/${workId}.json`);
-  if (!res.ok) throw new Error('Failed to fetch book details');
+export async function fetchPageCount(workId) {
+  try {
+    const res = await fetch(`${BASE_URL}/works/${workId}/editions.json?limit=10`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const counts = (data.entries || [])
+      .map((e) => e.number_of_pages)
+      .filter((n) => n > 0);
+    if (!counts.length) return null;
+    counts.sort((a, b) => a - b);
+    return counts[Math.floor(counts.length / 2)];
+  } catch {
+    return null;
+  }
+}
 
-  const data = await res.json();
+export async function getBookDetails(workId) {
+  const [workRes, pages] = await Promise.all([
+    fetch(`${BASE_URL}/works/${workId}.json`),
+    fetchPageCount(workId),
+  ]);
+
+  if (!workRes.ok) throw new Error('Failed to fetch book details');
+
+  const data = await workRes.json();
 
   return {
     id: workId,
@@ -44,6 +64,7 @@ export async function getBookDetails(workId) {
     ) || [],
     subjects: data.subjects?.slice(0, 10) || [],
     firstPublishDate: data.first_publish_date || null,
+    pages,
   };
 }
 

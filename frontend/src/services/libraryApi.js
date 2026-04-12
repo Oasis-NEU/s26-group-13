@@ -8,6 +8,7 @@ export async function fetchUserBooks(userId) {
       status,
       current_page,
       rating,
+      is_favorite,
       books (
         id,
         open_library_id,
@@ -24,7 +25,7 @@ export async function fetchUserBooks(userId) {
   return data;
 }
 
-export async function addBookToLibrary(userId, book) {
+export async function addBookToLibrary(userId, book, status = 'reading') {
   // Ensure a profile row exists for this user (required by user_books FK)
   const { error: profileError } = await supabase
     .from('profiles')
@@ -54,7 +55,7 @@ export async function addBookToLibrary(userId, book) {
   // Link book to user
   const { data: userBook, error: userBookError } = await supabase
     .from('user_books')
-    .insert({ user_id: userId, book_id: bookRow.id, status: 'to_read', current_page: 0 })
+    .insert({ user_id: userId, book_id: bookRow.id, status, current_page: 0 })
     .select('id')
     .single();
 
@@ -76,6 +77,30 @@ export async function updateBookProgress(userBookId, currentPage) {
   if (error) throw error;
 }
 
+export async function updateBookPageCount(openLibraryId, pageCount) {
+  const { error } = await supabase
+    .from('books')
+    .update({ page_count: pageCount })
+    .eq('open_library_id', openLibraryId);
+  if (error) console.warn('Failed to update page count:', error.message);
+}
+
+export async function updateBookStatus(userBookId, status) {
+  const { error } = await supabase
+    .from('user_books')
+    .update({ status })
+    .eq('id', userBookId);
+  if (error) throw error;
+}
+
+export async function setBookFavorite(userBookId, isFavorite) {
+  const { error } = await supabase
+    .from('user_books')
+    .update({ is_favorite: isFavorite })
+    .eq('id', userBookId);
+  if (error) throw error;
+}
+
 // Save username so other users can discover this account
 // profiles table has: id, username, avatar_url, yearly_goal, daily_min_goal, created_at
 export async function upsertProfile(userId, displayName, _email) {
@@ -90,6 +115,47 @@ export async function upsertProfile(userId, displayName, _email) {
       { onConflict: 'id', ignoreDuplicates: false }
     );
   if (error) console.warn('upsertProfile failed:', error.message);
+}
+
+// ── Follow system ─────────────────────────────────────────────────────────────
+
+export async function syncFollow(followerId, followingId) {
+  const { error } = await supabase
+    .from('follows')
+    .upsert(
+      { follower_id: followerId, following_id: followingId },
+      { onConflict: 'follower_id,following_id', ignoreDuplicates: true }
+    );
+  if (error) throw error;
+}
+
+export async function syncUnfollow(followerId, followingId) {
+  const { error } = await supabase
+    .from('follows')
+    .delete()
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId);
+  if (error) throw error;
+}
+
+export async function getFollowingIds(userId) {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+  if (error) return [];
+  return (data || []).map((r) => r.following_id);
+}
+
+export async function getFollowCounts(userId) {
+  const [followingRes, followersRes] = await Promise.all([
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+  ]);
+  return {
+    following: followingRes.count ?? 0,
+    followers: followersRes.count ?? 0,
+  };
 }
 
 // Fetch a single profile by ID
@@ -125,6 +191,29 @@ export async function fetchUserBooksById(userId) {
     .eq('user_id', userId);
   if (error) return []; // gracefully handle RLS
   return data || [];
+}
+
+// ── Reading Activity ──────────────────────────────────────────────────────────
+
+export async function fetchReadingActivity(userId) {
+  const { data, error } = await supabase
+    .from('reading_activity')
+    .select('date, pages_read')
+    .eq('user_id', userId);
+  if (error) throw error;
+  const map = {};
+  (data || []).forEach((row) => { map[row.date] = row.pages_read; });
+  return map;
+}
+
+export async function upsertReadingActivity(userId, date, pagesRead) {
+  const { error } = await supabase
+    .from('reading_activity')
+    .upsert(
+      { user_id: userId, date, pages_read: pagesRead },
+      { onConflict: 'user_id,date' }
+    );
+  if (error) throw error;
 }
 
 // Fetch all profiles for the Discover tab (excludes the current user)

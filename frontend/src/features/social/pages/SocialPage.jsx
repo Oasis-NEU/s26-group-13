@@ -40,7 +40,7 @@ function RealUserCard({ profile, user, navigate }) {
   const handleFollow = (e) => {
     e.stopPropagation();
     if (!user) { navigate('/login'); return; }
-    following ? unfollow(profile.id) : follow(profile.id);
+    following ? unfollow(profile.id, user?.id) : follow(profile.id, user?.id);
   };
 
   return (
@@ -104,7 +104,7 @@ function DiscoverTab({ user }) {
   const handleFollow = (e, id) => {
     e.stopPropagation();
     if (!user) { navigate('/login'); return; }
-    followingList.includes(id) ? unfollow(id) : follow(id);
+    followingList.includes(id) ? unfollow(id, user?.id) : follow(id, user?.id);
   };
 
   const totalResults = filteredReal.length + filteredMocks.length;
@@ -250,7 +250,7 @@ function FollowingTab({ user }) {
           </Box>
           <Typography variant="body2" color="text.secondary">@{username}</Typography>
         </Box>
-        <Button size="small" variant="outlined" color="error" onClick={() => unfollow(id)}>
+        <Button size="small" variant="outlined" color="error" onClick={() => unfollow(id, user?.id)}>
           Unfollow
         </Button>
       </Box>

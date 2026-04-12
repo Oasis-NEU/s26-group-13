@@ -8,7 +8,7 @@ import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MOCK_PROFILES } from '../data/mockProfiles';
-import { fetchProfileById, fetchUserBooksById } from '../../../services/libraryApi';
+import { fetchProfileById, fetchUserBooksById, getFollowCounts } from '../../../services/libraryApi';
 import useSocialStore from '../../../store/socialStore';
 import useAuthStore from '../../../store/authStore';
 import useActivityStore, {
@@ -127,9 +127,15 @@ export default function UserProfilePage() {
     enabled: !mockProfile && !!realProfile,
   });
 
+  const { data: followCounts } = useQuery({
+    queryKey: ['followCounts', userId],
+    queryFn: () => getFollowCounts(userId),
+    enabled: !!userId,
+  });
+
   const handleFollow = () => {
     if (!user) { navigate('/login'); return; }
-    following ? unfollow(userId) : follow(userId);
+    following ? unfollow(userId, user.id) : follow(userId, user.id);
   };
 
   const followButton = (
@@ -174,6 +180,8 @@ export default function UserProfilePage() {
             <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
               <Typography variant="body2" color="text.secondary">{mockProfile.readingList.length} Books</Typography>
               <Typography variant="body2" color="text.secondary">{booksFinished} Finished</Typography>
+              <Typography variant="body2" color="text.secondary">{followCounts?.following ?? '—'} Following</Typography>
+              <Typography variant="body2" color="text.secondary">{followCounts?.followers ?? '—'} Followers</Typography>
               {streak > 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <LocalFireDepartmentIcon sx={{ fontSize: 16, color: 'warning.main' }} />
@@ -239,6 +247,8 @@ export default function UserProfilePage() {
             {realBooksFormatted.length > 0 && (
               <Typography variant="body2" color="text.secondary">{realBooksFormatted.length} Books</Typography>
             )}
+            <Typography variant="body2" color="text.secondary">{followCounts?.following ?? '—'} Following</Typography>
+            <Typography variant="body2" color="text.secondary">{followCounts?.followers ?? '—'} Followers</Typography>
             {streak > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <LocalFireDepartmentIcon sx={{ fontSize: 16, color: 'warning.main' }} />

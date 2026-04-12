@@ -7,6 +7,8 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import LogoutIcon from '@mui/icons-material/Logout';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { IconButton, Tooltip } from '@mui/material';
 import useBookSearch from '../../features/books/hooks/useBookSearch';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
@@ -128,6 +130,15 @@ export default function Navbar() {
             )}
           </Box>
         </ClickAwayListener>
+
+        <Tooltip title="Help">
+          <IconButton
+            onClick={() => navigate('/help')}
+            sx={{ color: location.pathname === '/help' ? 'primary.main' : 'text.primary' }}
+          >
+            <HelpOutlineIcon />
+          </IconButton>
+        </Tooltip>
 
         <ThemeSelector />
 

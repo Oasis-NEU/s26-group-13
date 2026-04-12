@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { MOCK_PROFILES } from '../features/social/data/mockProfiles';
+import { fetchReadingActivity, upsertReadingActivity } from '../services/libraryApi';
 
 // Deterministic pseudo-random using sin as a hash
 function dRand(seed) {
@@ -114,7 +115,7 @@ const _initialSessions = buildInitialSessions(_initialActivityMap);
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
-const useActivityStore = create((set) => ({
+const useActivityStore = create((set, get) => ({
   // { [userId]: { [dateStr]: pagesRead } }
   activityMap: _initialActivityMap,
   // flat list sorted by timestamp desc
@@ -122,16 +123,52 @@ const useActivityStore = create((set) => ({
   // { [userId]: bookTitle } — currently running timer sessions
   activeSessions: {},
 
-  logSession: (userId, displayName, username, bookTitle, pagesRead) => {
+  // Load real user activity from Supabase, replacing any stale entry
+  loadUserActivity: async (userId) => {
+    try {
+      const map = await fetchReadingActivity(userId);
+      set((state) => ({
+        activityMap: { ...state.activityMap, [userId]: map },
+      }));
+    } catch (err) {
+      console.error('Failed to load reading activity:', err);
+    }
+  },
+
+  // Called when user manually updates page number; pagesRead = delta (new - old)
+  logPageUpdate: async (userId, pagesRead) => {
+    if (pagesRead <= 0) return;
     const today = new Date().toISOString().split('T')[0];
+    let newTotal;
     set((state) => {
       const userMap = state.activityMap[userId] || {};
+      newTotal = (userMap[today] || 0) + pagesRead;
+      return {
+        activityMap: {
+          ...state.activityMap,
+          [userId]: { ...userMap, [today]: newTotal },
+        },
+      };
+    });
+    try {
+      await upsertReadingActivity(userId, today, newTotal);
+    } catch (err) {
+      console.error('Failed to persist reading activity:', err);
+    }
+  },
+
+  logSession: (userId, displayName, username, bookTitle, pagesRead) => {
+    const today = new Date().toISOString().split('T')[0];
+    let newTotal;
+    set((state) => {
+      const userMap = state.activityMap[userId] || {};
+      newTotal = (userMap[today] || 0) + pagesRead;
       const nextActive = { ...state.activeSessions };
       delete nextActive[userId];
       return {
         activityMap: {
           ...state.activityMap,
-          [userId]: { ...userMap, [today]: (userMap[today] || 0) + pagesRead },
+          [userId]: { ...userMap, [today]: newTotal },
         },
         sessions: [
           {
@@ -144,6 +181,10 @@ const useActivityStore = create((set) => ({
         activeSessions: nextActive,
       };
     });
+    // Persist timer session activity too
+    upsertReadingActivity(userId, today, newTotal).catch((err) =>
+      console.error('Failed to persist timer session activity:', err)
+    );
   },
 
   setActiveSession: (userId, bookTitle) =>
