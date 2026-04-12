@@ -5,6 +5,7 @@ import {
   removeBookFromLibrary,
   updateBookProgress,
 } from '../services/libraryApi';
+import useActivityStore from './activityStore';
 
 const useBookStore = create((set, get) => ({
   searchQuery: '',
@@ -60,10 +61,16 @@ const useBookStore = create((set, get) => ({
   },
 
   updateProgress: async (bookId, page, userId) => {
+    const book = get().readingList.find((b) => b.id === bookId);
+    const oldPage = book?.currentPage || 0;
+    const delta = page - oldPage;
+
     if (userId) {
-      const book = get().readingList.find((b) => b.id === bookId);
       if (book?.userBookId) {
         await updateBookProgress(book.userBookId, page);
+      }
+      if (delta > 0) {
+        useActivityStore.getState().logPageUpdate(userId, delta);
       }
     }
     set({

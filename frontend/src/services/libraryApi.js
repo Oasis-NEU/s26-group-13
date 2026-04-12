@@ -168,6 +168,29 @@ export async function fetchUserBooksById(userId) {
   return data || [];
 }
 
+// ── Reading Activity ──────────────────────────────────────────────────────────
+
+export async function fetchReadingActivity(userId) {
+  const { data, error } = await supabase
+    .from('reading_activity')
+    .select('date, pages_read')
+    .eq('user_id', userId);
+  if (error) throw error;
+  const map = {};
+  (data || []).forEach((row) => { map[row.date] = row.pages_read; });
+  return map;
+}
+
+export async function upsertReadingActivity(userId, date, pagesRead) {
+  const { error } = await supabase
+    .from('reading_activity')
+    .upsert(
+      { user_id: userId, date, pages_read: pagesRead },
+      { onConflict: 'user_id,date' }
+    );
+  if (error) throw error;
+}
+
 // Fetch all profiles for the Discover tab (excludes the current user)
 export async function fetchProfiles(query = '', currentUserId = null) {
   let req = supabase
