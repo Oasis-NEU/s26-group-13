@@ -47,11 +47,21 @@ export default function ProfilePage() {
     if (isNaN(page) || page < 0) page = 0;
     if (book.pages && page > book.pages) page = book.pages;
 
+    const previousPage = book.currentPage;
+    const previousStatus = book.status;
+
     updateProgress(book.id, page, user?.id);
 
     if (book.pages && page >= book.pages) {
       updateStatus(book.id, 'finished', user?.id);
-      showToast(`You finished "${book.title}"! Great job!`);
+      showToast(
+        `You finished "${book.title}"! Great job!`,
+        'success',
+        () => {
+          updateProgress(book.id, previousPage, user?.id);
+          updateStatus(book.id, previousStatus || 'reading', user?.id);
+        }
+      );
     }
 
     setProgressDialog({ open: false, book: null });

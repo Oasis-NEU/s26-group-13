@@ -11,6 +11,7 @@ import LibraryPage from '../features/library/LibraryPage';
 import SocialPage from '../features/social/pages/SocialPage';
 import UserProfilePage from '../features/social/pages/UserProfilePage';
 import TimerPage from '../features/timer/pages/TimerPage';
+import HelpPage from '../features/help/HelpPage';
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: '/social', element: <SocialPage /> },
       { path: '/social/:userId', element: <UserProfilePage /> },
       { path: '/timer', element: <TimerPage /> },
+      { path: '/help', element: <HelpPage /> },
     ],
   },
   {

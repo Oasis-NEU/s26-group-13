@@ -6,6 +6,8 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import LogoutIcon from '@mui/icons-material/Logout';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import { IconButton, Tooltip } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useBookSearch from '../../features/books/hooks/useBookSearch';
 import useBookStore from '../../store/bookStore';
@@ -170,6 +172,19 @@ export default function NatureNav() {
           )}
         </Box>
       </ClickAwayListener>
+
+      {/* Help pill */}
+      <Tooltip title="Help">
+        <Box sx={{ ...pillBase, pointerEvents: 'auto', display: 'flex', alignItems: 'center', px: 1, py: 0.5 }}>
+          <IconButton
+            size="small"
+            onClick={() => navigate('/help')}
+            sx={{ color: location.pathname === '/help' ? 'primary.main' : 'text.primary' }}
+          >
+            <HelpOutlineIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Tooltip>
 
       {/* Theme selector pill */}
       <Box sx={{ ...pillBase, pointerEvents: 'auto', display: 'flex', alignItems: 'center', px: 1, py: 0.5 }}>
