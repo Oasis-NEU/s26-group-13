@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import useBookStore from '../../store/bookStore';
 import useAuthStore from '../../store/authStore';
 import useActivityStore, { calcCurrentStreak } from '../../store/activityStore';
+import useToastStore from '../../store/toastStore';
 import ActivityChart from '../../components/common/ActivityChart';
 import { getFollowCounts } from '../../services/libraryApi';
 
@@ -22,11 +23,11 @@ export default function ProfilePage() {
   const readingList = useBookStore((s) => s.readingList);
   const removeFromReadingList = useBookStore((s) => s.removeFromReadingList);
   const updateProgress = useBookStore((s) => s.updateProgress);
+  const showToast = useToastStore((s) => s.showToast);
 
-  const setPageCount = useBookStore((s) => s.setPageCount);
+  const updateStatus = useBookStore((s) => s.updateStatus);
   const [progressDialog, setProgressDialog] = useState({ open: false, book: null });
   const [pageInput, setPageInput] = useState('');
-  const [totalPagesInput, setTotalPagesInput] = useState('');
 
   const fullActivityMap = useActivityStore((s) => s.activityMap);
   const activityMap = fullActivityMap[user?.id] || {};
@@ -35,19 +36,24 @@ export default function ProfilePage() {
   const handleOpenProgress = (e, book) => {
     e.stopPropagation();
     setPageInput(book.currentPage?.toString() || '0');
-    setTotalPagesInput(book.pages?.toString() || '');
     setProgressDialog({ open: true, book });
   };
 
   const handleSaveProgress = () => {
-    const page = parseInt(pageInput, 10);
-    const total = parseInt(totalPagesInput, 10);
-    if (!isNaN(page) && page >= 0 && progressDialog.book) {
-      updateProgress(progressDialog.book.id, page, user?.id);
+    const book = progressDialog.book;
+    if (!book) return;
+
+    let page = parseInt(pageInput, 10);
+    if (isNaN(page) || page < 0) page = 0;
+    if (book.pages && page > book.pages) page = book.pages;
+
+    updateProgress(book.id, page, user?.id);
+
+    if (book.pages && page >= book.pages) {
+      updateStatus(book.id, 'finished', user?.id);
+      showToast(`You finished "${book.title}"! Great job!`);
     }
-    if (!isNaN(total) && total > 0 && progressDialog.book && total !== progressDialog.book.pages) {
-      setPageCount(progressDialog.book.id, total);
-    }
+
     setProgressDialog({ open: false, book: null });
   };
 
@@ -329,18 +335,17 @@ export default function ProfilePage() {
             label="Current page"
             type="number"
             value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            inputProps={{ min: 0 }}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Total pages"
-            type="number"
-            value={totalPagesInput}
-            onChange={(e) => setTotalPagesInput(e.target.value)}
-            inputProps={{ min: 1 }}
-            helperText="Set this so your progress bar fills correctly"
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              const max = progressDialog.book?.pages;
+              if (!isNaN(val) && max && val > max) {
+                setPageInput(max.toString());
+              } else {
+                setPageInput(e.target.value);
+              }
+            }}
+            inputProps={{ min: 0, max: progressDialog.book?.pages || undefined }}
+            helperText={progressDialog.book?.pages ? `Out of ${progressDialog.book.pages} pages` : undefined}
           />
         </DialogContent>
         <DialogActions>
